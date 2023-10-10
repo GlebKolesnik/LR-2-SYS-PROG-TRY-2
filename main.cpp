@@ -1,93 +1,125 @@
 #include <iostream>
-#include <fstream>
-#include <string>
+#include <vector>
 #include <set>
 #include <map>
+#include <fstream>
+#include <string>
 
-using namespace std;
-
-// Structure for representing a state machine
-struct FiniteAutomaton {
-    set<int> states;  // set states
-    int initial_state; // initial state
-    set<int> final_states; // set final states
-    map<pair<int, char>, int> transitions; // Transition function (state, symbol) -> next state
+struct Automaton {
+    std::set<char> A; // Алфавит
+    std::set<int> S;  // Состояния
+    int s0;  // Начальное состояние
+    std::set<int> F;  // Финальные состояния
+    std::map<std::pair<int, char>, int> f;  // Функция переходов
 };
 
-// Function to check if the machine accepts the word w
-bool acceptsWord(const FiniteAutomaton& automaton, const string& w) {
-    int current_state = automaton.initial_state;
+std::string findWordW1(const Automaton& automaton, const std::string& w0) {
+    // Перебираем все состояния S и проверяем, можно ли из них попасть в финальное состояние,
+    // прочитав слово w0.
+    for (int state : automaton.S) {
+        int current_state = state;
+        bool is_accepted = true;
+        std::string w1;
 
-    // Process w
-    for (char c : w) {
-        auto transition = automaton.transitions.find({ current_state, c });
-        if (transition == automaton.transitions.end()) {
-            return false; // No transition for character c
+        for (char symbol : w0) {
+            auto it = automaton.f.find({ current_state, symbol });
+            if (it == automaton.f.end()) {
+                // Перехода нет
+                is_accepted = false;
+                break;
+            }
+            else {
+                // Переходим в следующее состояние
+                current_state = it->second;
+                w1.push_back(symbol);
+            }
         }
-        current_state = transition->second;
-    }
 
-    return automaton.final_states.count(current_state) > 0; // Checking the final state
+        // Проверяем, является ли текущее состояние финальным
+        if (is_accepted && automaton.F.count(current_state)) {
+            return w1;
+        }
+    }
+    return ""; // Возвращаем пустую строку, если слово не найдено
 }
 
+bool readAutomaton(const std::string& filename, Automaton& automaton) {
+    std::ifstream infile(filename);
+    if (!infile.is_open()) {
+        return false;
+    }
+
+    int size;
+    char a;
+
+    // Считываем алфавит
+    infile >> size;
+    for (int i = 0; i < size; i++) {
+        infile >> a;
+        automaton.A.insert(a);
+    }
+
+    // Считываем состояния
+    infile >> size;
+    for (int i = 0; i < size; i++) {
+        automaton.S.insert(i);
+    }
+
+    // Считываем начальное состояние
+    infile >> automaton.s0;
+
+    // Считываем финальные состояния
+    infile >> size;
+    int fs;
+    for (int i = 0; i < size; i++) {
+        infile >> fs;
+        automaton.F.insert(fs);
+    }
+
+    // Считываем функцию переходов
+    int s, s_prime;
+    while (infile >> s >> a >> s_prime) {
+        automaton.f[{s, a}] = s_prime;
+    }
+
+    infile.close();
+    return true;
+}
+
+
+bool isWordAccepted(const Automaton& automaton, const std::string& w0) {
+    return !findWordW1(automaton, w0).empty();
+}
+
+
 int main() {
-    setlocale(LC_ALL, "Russian");
-    FiniteAutomaton automaton;
-
-    // Fixed word "w0" here
-    string w0 = "for";
-
-    // Read data about the state machine from a file
-    ifstream input("automaton.txt");
-    if (!input.is_open()) {
-        cout << "Не удалось открыть файл." << endl;
+    Automaton automaton;
+    if (!readAutomaton("automaton.txt", automaton)) {
+        std::cerr << "Failed to read automaton" << std::endl;
         return 1;
     }
 
-    // Read ||A|| alphabet
-    int alphabet_size;
-    input >> alphabet_size;
+    std::string w0;
+    char continueAnswer;
 
-    // Read ||S||
-    int num_states;
-    input >> num_states;
+    do {
+        std::cout << "Enter word w0: ";
+        std::cin >> w0;
 
-    // Read the initial state s0
-    input >> automaton.initial_state;
+        std::string w1 = findWordW1(automaton, w0);
+        if (!w1.empty()) {
+            std::cout << "There exists a word w1 = " << w1 << " such that w = w1w0 is accepted by the automaton" << std::endl;
+        }
+        else {
+            std::cout << "No such word w1 exists that w = w1w0 is accepted by the automaton" << std::endl;
+        }
 
-    // Read ||F|| and final states
-    int num_final_states;
-    input >> num_final_states;
-    for (int i = 0; i < num_final_states; i++) {
-        int final_state;
-        input >> final_state;
-        automaton.final_states.insert(final_state);
-    }
+        std::cout << "Do you want to check another word? (y/n): ";
+        std::cin >> continueAnswer;
 
-    // Read the transition function
-    int s, s_next;
-    char a;
-    while (input >> s >> a >> s_next) {
-        automaton.transitions[{s, a}] = s_next;
-    }
-
-    input.close();
-
-    // Prompt the user to enter the word "w1"
-    cout << "Введите слово w1: ";
-    string w1;
-    cin >> w1;
-
-    // Checking the word "w0 + w1"
-    string w = w0 + w1;
-    bool result = acceptsWord(automaton, w);
-
-    if (result) {
-        cout << "Конечный автомат допускает слово w = " << w << endl;
-    }
-    else {
-        cout << "Конечный автомат не допускает слово w = " << w << endl;
-    }
+    } while (continueAnswer == 'y' || continueAnswer == 'Y');
 
     return 0;
 }
+
+
